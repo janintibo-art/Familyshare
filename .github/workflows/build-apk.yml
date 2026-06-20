@@ -1,7 +1,5 @@
 name: Build APK
 
-# Compile l'APK de debug à chaque push / pull request, et à la demande
-# (onglet Actions → Build APK → "Run workflow").
 on:
   push:
     branches: [ main, master ]
@@ -29,20 +27,31 @@ jobs:
       - name: Préparer le SDK Android (+ acceptation des licences)
         uses: android-actions/setup-android@v3
 
-      # Le dépôt n'inclut pas gradle-wrapper.jar (régénéré par Android Studio),
-      # donc on installe un Gradle système à la version du projet et on l'appelle
-      # directement (pas besoin de ./gradlew).
       - name: Préparer Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
 
+      # Trouve le dossier contenant settings.gradle.kts (racine OU sous-dossier).
+      - name: Localiser le projet Gradle
+        id: projet
+        run: |
+          FILE=$(find . -name 'settings.gradle.kts' -not -path '*/.git/*' | head -n 1)
+          if [ -z "$FILE" ]; then
+            echo "::error::Aucun settings.gradle.kts trouvé dans le dépôt."
+            exit 1
+          fi
+          DIR=$(dirname "$FILE")
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "Projet Gradle trouvé dans : $DIR"
+
       - name: Compiler l'APK de debug
+        working-directory: ${{ steps.projet.outputs.dir }}
         run: gradle :app:assembleDebug --stacktrace --no-daemon
 
       - name: Publier l'APK en artefact téléchargeable
         uses: actions/upload-artifact@v4
         with:
           name: FamilyShare-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: ${{ steps.projet.outputs.dir }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
