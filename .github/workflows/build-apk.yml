@@ -1,0 +1,48 @@
+name: Build APK
+
+# Compile l'APK de debug à chaque push / pull request, et à la demande
+# (onglet Actions → Build APK → "Run workflow").
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Assembler l'APK (debug)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer le JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Préparer le SDK Android (+ acceptation des licences)
+        uses: android-actions/setup-android@v3
+
+      # Le dépôt n'inclut pas gradle-wrapper.jar (régénéré par Android Studio),
+      # donc on installe un Gradle système à la version du projet et on l'appelle
+      # directement (pas besoin de ./gradlew).
+      - name: Préparer Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Compiler l'APK de debug
+        run: gradle :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Publier l'APK en artefact téléchargeable
+        uses: actions/upload-artifact@v4
+        with:
+          name: FamilyShare-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
